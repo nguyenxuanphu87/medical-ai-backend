@@ -1,10 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import json
+import os
 
 app = FastAPI(title="Medical Diagnosis API")
 
-# Cho phép frontend truy cập (CORS)
+# =========================
+# CORS – cho phép frontend gọi
+# =========================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -13,50 +17,45 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# =========================
+# Đọc file diseases.json
+# =========================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_FILE = os.path.join(BASE_DIR, "data", "diseases.json")
+
+with open(DATA_FILE, "r", encoding="utf-8") as f:
+    diseases = json.load(f)
+
+# =========================
+# Model nhận dữ liệu
+# =========================
 class SymptomInput(BaseModel):
     symptom: str
 
+# =========================
+# API chẩn đoán
+# =========================
 @app.post("/diagnose")
 def diagnose(data: SymptomInput):
-    s = data.symptom.lower()
+    user_symptom = data.symptom.lower()
 
-    if "sốt" in s and "đau hốc mắt" in s:
-        return {
-            "disease": "Nghi ngờ sốt xuất huyết",
-            "explanation": "Sốt cao kèm đau hốc mắt là dấu hiệu thường gặp.",
-            "advice": "Cần đến cơ sở y tế để xét nghiệm."
-        }
+    for disease in diseases:
+        match_count = 0
 
-    if "đau họng" in s or "rát họng" in s:
-        return {
-            "disease": "Viêm họng",
-            "explanation": "Triệu chứng điển hình của viêm họng.",
-            "advice": "Súc miệng nước muối, giữ ấm cổ."
-        }
+        for keyword in disease["keywords"]:
+            if keyword.lower() in user_symptom:
+                match_count += 1
 
-    if "ho" in s and "sốt" in s:
-        return {
-            "disease": "Cảm cúm",
-            "explanation": "Ho và sốt thường gặp trong cảm cúm.",
-            "advice": "Nghỉ ngơi, uống nhiều nước."
-        }
-
-    if "đau đầu" in s and "mệt" in s:
-        return {
-            "disease": "Căng thẳng / thiếu ngủ",
-            "explanation": "Triệu chứng thường gặp khi stress.",
-            "advice": "Ngủ đủ giấc, thư giãn."
-        }
-
-    if "đau bụng" in s or "buồn nôn" in s:
-        return {
-            "disease": "Rối loạn tiêu hóa",
-            "explanation": "Triệu chứng tiêu hóa phổ biến.",
-            "advice": "Ăn nhẹ, tránh đồ dầu mỡ."
-        }
+        # Nếu khớp >= 2 triệu chứng → nghi ngờ bệnh
+        if match_count >= 2:
+            return {
+                "disease": disease["name"],
+                "explanation": disease["explanation"],
+                "advice": disease["advice"]
+            }
 
     return {
         "disease": "Chưa xác định",
-        "explanation": "Chưa đủ dữ liệu chuẩn đoán.",
-        "advice": "Nên đi khám bác sĩ."
+        "explanation": "Chưa đủ triệu chứng để đưa ra chẩn đoán.",
+        "advice": "Nên đến cơ sở y tế để được tư vấn."
     }

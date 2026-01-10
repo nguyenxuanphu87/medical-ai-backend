@@ -2,60 +2,50 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import json
-import os
 
 app = FastAPI(title="Medical Diagnosis API")
 
-# =========================
-# CORS – cho phép frontend gọi
-# =========================
+# Cho phép frontend gọi API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# =========================
-# Đọc file diseases.json
-# =========================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE = os.path.join(BASE_DIR, "data", "diseases.json")
+# 🔥 ĐỌC JSON 1 LẦN DUY NHẤT (RẤT QUAN TRỌNG)
+with open("data/diseases.json", encoding="utf-8") as f:
+    DISEASES = json.load(f)
 
-with open(DATA_FILE, "r", encoding="utf-8") as f:
-    diseases = json.load(f)
-
-# =========================
-# Model nhận dữ liệu
-# =========================
 class SymptomInput(BaseModel):
     symptom: str
 
-# =========================
-# API chẩn đoán
-# =========================
 @app.post("/diagnose")
 def diagnose(data: SymptomInput):
-    user_symptom = data.symptom.lower()
+    user_text = data.symptom.lower()
 
-    for disease in diseases:
-        match_count = 0
+    best_match = None
+    best_score = 0
 
-        for keyword in disease["keywords"]:
-            if keyword.lower() in user_symptom:
-                match_count += 1
+    for disease in DISEASES:
+        score = 0
+        for kw in disease["keywords"]:
+            if kw in user_text:
+                score += 1
 
-        # Nếu khớp >= 2 triệu chứng → nghi ngờ bệnh
-        if match_count >= 2:
-            return {
-                "disease": disease["name"],
-                "explanation": disease["explanation"],
-                "advice": disease["advice"]
-            }
+        if score > best_score:
+            best_score = score
+            best_match = disease
+
+    if best_match and best_score > 0:
+        return {
+            "disease": best_match["name"],
+            "explanation": best_match["explanation"],
+            "advice": best_match["advice"]
+        }
 
     return {
         "disease": "Chưa xác định",
-        "explanation": "Chưa đủ triệu chứng để đưa ra chẩn đoán.",
+        "explanation": "Triệu chứng chưa đủ rõ ràng.",
         "advice": "Nên đến cơ sở y tế để được tư vấn."
     }
